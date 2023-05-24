@@ -1,1 +1,1 @@
-# simple-image-server
+# Simple image upload server
