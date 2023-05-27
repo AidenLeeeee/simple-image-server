@@ -1,40 +1,78 @@
-import React, { useState } from 'react';
-import axios from 'axios'
+import React, { useState } from "react";
+import axios from "axios";
+import "./UploadForm.css";
+import { toast } from "react-toastify";
+import ProgressBar from "./ProgressBar";
 
 const UploadForm = () => {
+    const defaultFileName = "Please upload your photo.";
     const [file, setFile] = useState(null);
-    const [fileName, setFileName] = useState("Please upload your photo.");
+    const [imgSrc, setImgSrc] = useState(null);
+    const [fileName, setFileName] = useState(defaultFileName);
+    const [percent, setPercent] = useState(0);
 
     const imageSelectHandler = (event) => {
         const imageFile = event.target.files[0];
         setFile(imageFile);
-        setFileName(imageFile.name)
-    }
+        setFileName(imageFile.name);
+        const fileReader = new FileReader();
+        fileReader.readAsDataURL(imageFile);
+        fileReader.onload = (event) => setImgSrc(event.target.result);
+    };
 
     const onSubmitHandler = async (event) => {
         event.preventDefault();
         const formData = new FormData();
-        formData.append("image", file)
+        formData.append("image", file);
         try {
             const res = await axios.post("/upload", formData, {
-                headers: {"Content-Type":"multipart/form-data"}
+                headers: { "Content-Type": "multipart/form-data" },
+                onUploadProgress: (event) => {
+                    setPercent(Math.round((100 * event.loaded) / event.total));
+                },
             });
-            console.log({ res })
-            alert("Success!");
+            toast.success("Uploaded!");
+            setTimeout(() => {
+                setPercent(0);
+                setFileName(defaultFileName);
+                setImgSrc(null);
+            }, 3000);
         } catch (err) {
-            alert("Fail!");
+            toast.error("Failed");
+            setPercent(0);
+            setFileName(defaultFileName);
+            setImgSrc(null);
             console.error(err);
         }
-    }
+    };
 
     return (
         <form onSubmit={onSubmitHandler}>
-            <label htmlFor='image'>{fileName}</label>
-            <input
-                id='image'
-                type='file'
-                onChange={imageSelectHandler} />
-            <button type='submit'>Submit</button>
+            <img
+                src={imgSrc}
+                className={`image-preview ${imgSrc && "image-preview-show"}`}
+            ></img>
+            <ProgressBar percent={percent} />
+            <div className="file-dropper">
+                {fileName}
+                <input
+                    id="image"
+                    type="file"
+                    accept="image/*"
+                    onChange={imageSelectHandler}
+                />
+            </div>
+            <button
+                type="submit"
+                style={{
+                    width: "100%",
+                    height: 40,
+                    borderRadius: 5,
+                    cursor: "pointer",
+                }}
+            >
+                Upload
+            </button>
         </form>
     );
 };
