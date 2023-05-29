@@ -11,6 +11,7 @@ const ToolBar = () => {
         try {
             await axios.patch("/users/logout");
             setMe();
+            localStorage.removeItem("sessionId");
             toast.success("GoodBye 👋🏼");
         } catch (err) {
             console.error(err);
@@ -24,7 +25,10 @@ const ToolBar = () => {
                 <span>Home</span>
             </Link>
             {me ? (
-                <span onClick={logoutHandler} style={{ float: "right" }}>
+                <span
+                    onClick={logoutHandler}
+                    style={{ float: "right", cursor: "pointer" }}
+                >
                     Logout({me.name})
                 </span>
             ) : (

@@ -2,6 +2,7 @@ const { Router } = require("express");
 const userRouter = Router();
 const User = require("../models/User");
 const { hash, compare } = require("bcryptjs");
+const Image = require("../models/Image");
 
 userRouter.post("/register", async (req, res) => {
     try {
@@ -73,6 +74,17 @@ userRouter.get("/me", (req, res) => {
             name: req.user.name,
             userId: req.user._id,
         });
+    } catch (err) {
+        console.error(err);
+        res.status(400).json({ message: err.message });
+    }
+});
+
+userRouter.get("/me/images", async (req, res) => {
+    try {
+        if (!req.user) throw new Error("This service needs login");
+        const images = await Image.find({ "user._id": req.user.id });
+        res.json(images);
     } catch (err) {
         console.error(err);
         res.status(400).json({ message: err.message });

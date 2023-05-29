@@ -6,12 +6,15 @@ import ProgressBar from "./ProgressBar";
 import { ImageContext } from "../context/ImageContext";
 
 const UploadForm = () => {
-    const [images, setImages] = useContext(ImageContext);
+    const { images, setImages, myImages, setMyImages } = useContext(
+        ImageContext
+    );
     const defaultFileName = "Please upload your photo.";
     const [file, setFile] = useState(null);
     const [imgSrc, setImgSrc] = useState(null);
     const [fileName, setFileName] = useState(defaultFileName);
     const [percent, setPercent] = useState(0);
+    const [isPublic, setIsPublic] = useState(true);
 
     const imageSelectHandler = (event) => {
         const imageFile = event.target.files[0];
@@ -26,6 +29,7 @@ const UploadForm = () => {
         event.preventDefault();
         const formData = new FormData();
         formData.append("image", file);
+        formData.append("public", isPublic);
         try {
             const res = await axios.post("/images", formData, {
                 headers: { "Content-Type": "multipart/form-data" },
@@ -33,7 +37,10 @@ const UploadForm = () => {
                     setPercent(Math.round((100 * event.loaded) / event.total));
                 },
             });
-            setImages([...images, res.data]);
+            if (isPublic) {
+                setImages([...images, res.data]);
+                setMyImages([...myImages, res.data]);
+            } else setMyImages([...myImages, res.data]);
             toast.success("Uploaded!");
             setTimeout(() => {
                 setPercent(0);
@@ -41,7 +48,7 @@ const UploadForm = () => {
                 setImgSrc(null);
             }, 3000);
         } catch (err) {
-            toast.error("Failed");
+            toast.error(err.response.data.message);
             setPercent(0);
             setFileName(defaultFileName);
             setImgSrc(null);
@@ -52,6 +59,7 @@ const UploadForm = () => {
     return (
         <form onSubmit={onSubmitHandler}>
             <img
+                alt=""
                 src={imgSrc}
                 className={`image-preview ${imgSrc && "image-preview-show"}`}
             ></img>
@@ -65,6 +73,13 @@ const UploadForm = () => {
                     onChange={imageSelectHandler}
                 />
             </div>
+            <input
+                type="checkbox"
+                id="public-check"
+                value={!isPublic}
+                onChange={() => setIsPublic(!isPublic)}
+            />
+            <label htmlFor="public-check">Private</label>
             <button
                 type="submit"
                 style={{
