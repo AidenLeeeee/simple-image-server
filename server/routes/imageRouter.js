@@ -8,20 +8,26 @@ const mongoose = require("mongoose");
 
 const fileUnlink = promisify(fs.unlink);
 
-imageRouter.post("/", upload.single("image"), async (req, res) => {
+imageRouter.post("/", upload.array("image", 5), async (req, res) => {
     try {
         if (!req.user) throw new Error("This service needs login");
-        const image = await new Image({
-            user: {
-                _id: req.user.id,
-                name: req.user.name,
-                username: req.user.username,
-            },
-            public: req.body.public,
-            key: req.file.filename,
-            originalFileName: req.file.originalname,
-        }).save();
-        res.json(image);
+        const images = await Promise.all(
+            req.files.map(async (file) => {
+                const image = await new Image({
+                    user: {
+                        _id: req.user.id,
+                        name: req.user.name,
+                        username: req.user.username,
+                    },
+                    public: req.body.public,
+                    key: file.filename,
+                    originalFileName: file.originalname,
+                }).save();
+                return image;
+            })
+        );
+
+        res.json(images);
     } catch (err) {
         console.error(err);
         res.status(400).json({ message: err.message });
@@ -29,8 +35,25 @@ imageRouter.post("/", upload.single("image"), async (req, res) => {
 });
 
 imageRouter.get("/", async (req, res) => {
-    const images = await Image.find({ public: true });
-    res.json(images);
+    try {
+        const { lastid } = req.query;
+        if (lastid && !mongoose.isValidObjectId(lastid))
+            throw new Error("Invalid lastid");
+        const images = await Image.find(
+            lastid
+                ? {
+                      public: true,
+                      _id: { $lt: lastid },
+                  }
+                : { public: true }
+        )
+            .sort({ _id: -1 })
+            .limit(20);
+        res.json(images);
+    } catch (err) {
+        console.error(err);
+        res.status(400).json({ message: err.message });
+    }
 });
 
 imageRouter.delete("/:imageId", async (req, res) => {

@@ -9,26 +9,42 @@ const UploadForm = () => {
     const { images, setImages, myImages, setMyImages } = useContext(
         ImageContext
     );
-    const defaultFileName = "Please upload your photo.";
-    const [file, setFile] = useState(null);
-    const [imgSrc, setImgSrc] = useState(null);
-    const [fileName, setFileName] = useState(defaultFileName);
+    const [files, setFiles] = useState(null);
+    const [previews, setPreviews] = useState([]);
     const [percent, setPercent] = useState(0);
     const [isPublic, setIsPublic] = useState(true);
 
-    const imageSelectHandler = (event) => {
-        const imageFile = event.target.files[0];
-        setFile(imageFile);
-        setFileName(imageFile.name);
-        const fileReader = new FileReader();
-        fileReader.readAsDataURL(imageFile);
-        fileReader.onload = (event) => setImgSrc(event.target.result);
+    const imageSelectHandler = async (event) => {
+        const imageFiles = event.target.files;
+        setFiles(imageFiles);
+
+        const imagePreviews = await Promise.all(
+            [...imageFiles].map(async (imageFile) => {
+                return new Promise((resolve, reject) => {
+                    try {
+                        const fileReader = new FileReader();
+                        fileReader.readAsDataURL(imageFile);
+                        fileReader.onload = (event) =>
+                            resolve({
+                                imgSrc: event.target.result,
+                                fileName: imageFile.name,
+                            });
+                    } catch (err) {
+                        reject(err);
+                    }
+                });
+            })
+        );
+
+        setPreviews(imagePreviews);
     };
 
     const onSubmitHandler = async (event) => {
         event.preventDefault();
         const formData = new FormData();
-        formData.append("image", file);
+
+        for (let file of files) formData.append("image", file);
+
         formData.append("public", isPublic);
         try {
             const res = await axios.post("/images", formData, {
@@ -38,37 +54,50 @@ const UploadForm = () => {
                 },
             });
             if (isPublic) {
-                setImages([...images, res.data]);
-                setMyImages([...myImages, res.data]);
-            } else setMyImages([...myImages, res.data]);
+                setImages([...images, ...res.data]);
+                setMyImages([...myImages, ...res.data]);
+            } else setMyImages([...myImages, ...res.data]);
             toast.success("Uploaded!");
             setTimeout(() => {
                 setPercent(0);
-                setFileName(defaultFileName);
-                setImgSrc(null);
+                setPreviews([]);
             }, 3000);
         } catch (err) {
             toast.error(err.response.data.message);
             setPercent(0);
-            setFileName(defaultFileName);
-            setImgSrc(null);
+            setPreviews([]);
             console.error(err);
         }
     };
 
+    const previewImages = previews.map((preview, index) => (
+        <img
+            key={index}
+            style={{ width: 200, height: 200, objectFit: "cover" }}
+            src={preview.imgSrc}
+            alt=""
+            className={`image-preview ${preview.imgSrc &&
+                "image-preview-show"}`}
+        />
+    ));
+
+    const fileName =
+        previews.length === 0
+            ? "Please upload your photos."
+            : previews.reduce((prev, curr) => prev + `${curr.fileName},`, "");
+
     return (
         <form onSubmit={onSubmitHandler}>
-            <img
-                alt=""
-                src={imgSrc}
-                className={`image-preview ${imgSrc && "image-preview-show"}`}
-            ></img>
+            <div style={{ display: "flex", flexWrap: "wrap" }}>
+                {previewImages}
+            </div>
             <ProgressBar percent={percent} />
             <div className="file-dropper">
                 {fileName}
                 <input
                     id="image"
                     type="file"
+                    multiple
                     accept="image/*"
                     onChange={imageSelectHandler}
                 />
