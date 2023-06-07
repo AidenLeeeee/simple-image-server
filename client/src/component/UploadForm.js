@@ -6,9 +6,7 @@ import ProgressBar from "./ProgressBar";
 import { ImageContext } from "../context/ImageContext";
 
 const UploadForm = () => {
-    const { images, setImages, myImages, setMyImages } = useContext(
-        ImageContext
-    );
+    const { setImages } = useContext(ImageContext);
     const [files, setFiles] = useState(null);
     const [previews, setPreviews] = useState([]);
     const [percent, setPercent] = useState(0);
@@ -53,10 +51,7 @@ const UploadForm = () => {
                     setPercent(Math.round((100 * event.loaded) / event.total));
                 },
             });
-            if (isPublic) {
-                setImages([...images, ...res.data]);
-                setMyImages([...myImages, ...res.data]);
-            } else setMyImages([...myImages, ...res.data]);
+            setImages((prevData) => [...prevData, ...res.data]);
             toast.success("Uploaded!");
             setTimeout(() => {
                 setPercent(0);

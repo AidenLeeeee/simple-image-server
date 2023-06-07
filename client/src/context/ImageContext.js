@@ -1,4 +1,10 @@
-import React, { createContext, useState, useEffect, useContext } from "react";
+import React, {
+    createContext,
+    useState,
+    useEffect,
+    useContext,
+    useRef,
+} from "react";
 import axios from "axios";
 import { AuthContext } from "./AuthContext";
 
@@ -12,20 +18,27 @@ export const ImageProvider = (prop) => {
     const [imageLoading, setImageLoading] = useState(false);
     const [imageError, setImageError] = useState(false);
     const [me] = useContext(AuthContext);
+    const pastImageUrlRef = useRef();
 
     useEffect(() => {
+        if (pastImageUrlRef.current === imageUrl) return;
         setImageLoading(true);
         axios
             .get(imageUrl)
-            .then((result) =>
-                setImages((prevData) => [...prevData, ...result.data])
-            )
+            .then((result) => {
+                isPublic
+                    ? setImages((prevData) => [...prevData, ...result.data])
+                    : setMyImages((prevData) => [...prevData, ...result.data]);
+            })
             .catch((err) => {
                 console.error(err);
                 setImageError(err);
             })
-            .finally(() => setImageLoading(false));
-    }, [imageUrl]);
+            .finally(() => {
+                setImageLoading(false);
+                pastImageUrlRef.current = imageUrl;
+            });
+    }, [imageUrl, isPublic]);
 
     useEffect(() => {
         if (me) {
@@ -41,22 +54,14 @@ export const ImageProvider = (prop) => {
         }
     }, [me]);
 
-    const loadMoreImages = () => {
-        if (images.length === 0 || imageLoading) return;
-        const lastImageId = images[images.length - 1]._id;
-        setImageUrl(`/images?lastid=${lastImageId}`);
-    };
-
     return (
         <ImageContext.Provider
             value={{
-                images,
-                setImages,
-                myImages,
-                setMyImages,
+                images: isPublic ? images : myImages,
+                setImages: isPublic ? setImages : setMyImages,
                 isPublic,
                 setIsPublic,
-                loadMoreImages,
+                setImageUrl,
                 imageLoading,
                 imageError,
             }}

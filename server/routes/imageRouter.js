@@ -48,7 +48,7 @@ imageRouter.get("/", async (req, res) => {
                 : { public: true }
         )
             .sort({ _id: -1 })
-            .limit(20);
+            .limit(30);
         res.json(images);
     } catch (err) {
         console.error(err);
