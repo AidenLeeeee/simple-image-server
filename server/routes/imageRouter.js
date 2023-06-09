@@ -56,6 +56,23 @@ imageRouter.get("/", async (req, res) => {
     }
 });
 
+imageRouter.get("/:imageId", async (req, res) => {
+    try {
+        const { imageId } = req.params;
+        if (!mongoose.isValidObjectId(imageId))
+            throw new Error("Invalid image id");
+        const image = await Image.findOne({ _id: imageId });
+        if (!image) throw new Error("Image doesn't exist");
+        if (!image.public && (!req.user || req.user.id !== image.user.id))
+            throw new Error("This service needs login");
+
+        res.json(image);
+    } catch (err) {
+        console.error(err);
+        res.status(400).json({ message: err.message });
+    }
+});
+
 imageRouter.delete("/:imageId", async (req, res) => {
     try {
         if (!req.user) throw new Error("This service needs login");
