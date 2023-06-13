@@ -9,7 +9,7 @@ const UploadForm = () => {
     const { setImages, setMyImages } = useContext(ImageContext);
     const [files, setFiles] = useState(null);
     const [previews, setPreviews] = useState([]);
-    const [percent, setPercent] = useState(0);
+    const [percent, setPercent] = useState([]);
     const [isPublic, setIsPublic] = useState(true);
     const inputRef = useRef();
 
@@ -40,43 +40,70 @@ const UploadForm = () => {
 
     const onSubmitHandler = async (event) => {
         event.preventDefault();
-        const formData = new FormData();
-
-        for (let file of files) formData.append("image", file);
-
-        formData.append("public", isPublic);
         try {
-            const res = await axios.post("/images", formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-                onUploadProgress: (event) => {
-                    setPercent(Math.round((100 * event.loaded) / event.total));
-                },
+            const presignedData = await axios.post("/images/presigned", {
+                contentTypes: [...files].map((file) => file.type),
             });
+
+            await Promise.all(
+                [...files].map((file, index) => {
+                    const { presigned } = presignedData.data[index];
+                    const formData = new FormData();
+                    for (const key in presigned.fields) {
+                        formData.append(key, presigned.fields[key]);
+                    }
+                    formData.append("Content-Type", file.type);
+                    formData.append("file", file);
+                    return axios.post(presigned.url, formData, {
+                        onUploadProgress: (event) => {
+                            setPercent((prevData) => {
+                                const newData = [...prevData];
+                                newData[index] = Math.round(
+                                    (100 * event.loaded) / event.total
+                                );
+                                return newData;
+                            });
+                        },
+                    });
+                })
+            );
+
+            const res = await axios.post("/images", {
+                images: [...files].map((file, index) => ({
+                    imageKey: presignedData.data[index].imageKey,
+                    originalname: file.name,
+                })),
+                isPublic,
+            });
+
             if (isPublic) setImages((prevData) => [...res.data, ...prevData]);
             setMyImages((prevData) => [...res.data, ...prevData]);
+
             toast.success("Uploaded!");
             setTimeout(() => {
-                setPercent(0);
+                setPercent([]);
                 setPreviews([]);
                 inputRef.current.value = null;
             }, 3000);
         } catch (err) {
-            toast.error(err.response.data.message);
-            setPercent(0);
-            setPreviews([]);
             console.error(err);
+            toast.error(err.response.data.message);
+            setPercent([]);
+            setPreviews([]);
         }
     };
 
     const previewImages = previews.map((preview, index) => (
-        <img
-            key={index}
-            style={{ width: 200, height: 200, objectFit: "cover" }}
-            src={preview.imgSrc}
-            alt=""
-            className={`image-preview ${preview.imgSrc &&
-                "image-preview-show"}`}
-        />
+        <div key={index}>
+            <img
+                style={{ width: 200, height: 200, objectFit: "cover" }}
+                src={preview.imgSrc}
+                alt=""
+                className={`image-preview ${preview.imgSrc &&
+                    "image-preview-show"}`}
+            />
+            <ProgressBar percent={percent[index]} />
+        </div>
     ));
 
     const fileName =
@@ -86,10 +113,15 @@ const UploadForm = () => {
 
     return (
         <form onSubmit={onSubmitHandler}>
-            <div style={{ display: "flex", flexWrap: "wrap" }}>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-around",
+                    flexWrap: "wrap",
+                }}
+            >
                 {previewImages}
             </div>
-            <ProgressBar percent={percent} />
             <div className="file-dropper">
                 {fileName}
                 <input

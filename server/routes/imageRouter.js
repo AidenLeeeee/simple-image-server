@@ -2,32 +2,54 @@ const { Router } = require("express");
 const imageRouter = Router();
 const Image = require("../models/Image");
 const { upload } = require("../middleware/imageUpload");
-const fs = require("fs");
-const { promisify } = require("util");
 const mongoose = require("mongoose");
+const { s3, getSignedUrl } = require("../aws");
+const { v4: uuid } = require("uuid");
+const mime = require("mime-types");
 
-const fileUnlink = promisify(fs.unlink);
-
-imageRouter.post("/", upload.array("image", 5), async (req, res) => {
+imageRouter.post("/presigned", async (req, res) => {
     try {
         if (!req.user) throw new Error("This service needs login");
-        const images = await Promise.all(
-            req.files.map(async (file) => {
-                const image = await new Image({
+        const { contentTypes } = req.body;
+        if (!Array.isArray(contentTypes))
+            throw new Error("Invalid ContentTypes");
+        const presignedData = await Promise.all(
+            contentTypes.map(async (contentType) => {
+                const imageKey = `${uuid()}.${mime.extension(contentType)}`;
+                const key = `raw/${imageKey}`;
+                const presigned = await getSignedUrl({ key });
+                return { imageKey, presigned };
+            })
+        );
+
+        res.json(presignedData);
+    } catch (err) {
+        console.error(err);
+        res.status(400).json({ message: err.message });
+    }
+});
+
+imageRouter.post("/", upload.array("image", 30), async (req, res) => {
+    try {
+        if (!req.user) throw new Error("This service needs login");
+        const { images, public } = req.body;
+
+        const imageDocs = await Promise.all(
+            images.map((image) =>
+                new Image({
                     user: {
                         _id: req.user.id,
                         name: req.user.name,
                         username: req.user.username,
                     },
-                    public: req.body.public,
-                    key: file.filename,
-                    originalFileName: file.originalname,
-                }).save();
-                return image;
-            })
+                    public,
+                    key: image.imageKey,
+                    originalFileName: image.originalname,
+                }).save()
+            )
         );
 
-        res.json(images);
+        res.json(imageDocs);
     } catch (err) {
         console.error(err);
         res.status(400).json({ message: err.message });
@@ -82,7 +104,15 @@ imageRouter.delete("/:imageId", async (req, res) => {
         const image = await Image.findOneAndDelete({ _id: req.params.imageId });
         if (!image) return res.json({ message: "Image already deleted" });
 
-        await fileUnlink(`./uploads/${image.key}`);
+        s3.deleteObject(
+            {
+                Bucket: "simple-image-server",
+                Key: `raw/${image.key}`,
+            },
+            (error) => {
+                if (error) throw error;
+            }
+        );
         res.json({ message: "Image deleted succesfully!" });
     } catch (err) {
         console.error(err);
