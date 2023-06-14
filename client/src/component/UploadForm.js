@@ -1,4 +1,4 @@
-import React, { useState, useContext, useRef } from "react";
+import React, { useState, useContext } from "react";
 import axios from "axios";
 import "./UploadForm.css";
 import { toast } from "react-toastify";
@@ -11,7 +11,7 @@ const UploadForm = () => {
     const [previews, setPreviews] = useState([]);
     const [percent, setPercent] = useState([]);
     const [isPublic, setIsPublic] = useState(true);
-    const inputRef = useRef();
+    const [isLoading, setIsLoading] = useState(false);
 
     const imageSelectHandler = async (event) => {
         const imageFiles = event.target.files;
@@ -41,6 +41,7 @@ const UploadForm = () => {
     const onSubmitHandler = async (event) => {
         event.preventDefault();
         try {
+            setIsLoading(true);
             const presignedData = await axios.post("/images/presigned", {
                 contentTypes: [...files].map((file) => file.type),
             });
@@ -73,7 +74,7 @@ const UploadForm = () => {
                     imageKey: presignedData.data[index].imageKey,
                     originalname: file.name,
                 })),
-                isPublic,
+                public: isPublic,
             });
 
             if (isPublic) setImages((prevData) => [...res.data, ...prevData]);
@@ -83,13 +84,14 @@ const UploadForm = () => {
             setTimeout(() => {
                 setPercent([]);
                 setPreviews([]);
-                inputRef.current.value = null;
+                setIsLoading(false);
             }, 3000);
         } catch (err) {
             console.error(err);
             toast.error(err.response.data.message);
             setPercent([]);
             setPreviews([]);
+            setIsLoading(false);
         }
     };
 
@@ -125,7 +127,6 @@ const UploadForm = () => {
             <div className="file-dropper">
                 {fileName}
                 <input
-                    ref={(ref) => (inputRef.current = ref)}
                     id="image"
                     type="file"
                     multiple
@@ -142,6 +143,7 @@ const UploadForm = () => {
             <label htmlFor="public-check">Private</label>
             <button
                 type="submit"
+                disabled={isLoading}
                 style={{
                     width: "100%",
                     height: 40,

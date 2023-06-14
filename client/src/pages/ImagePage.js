@@ -83,7 +83,7 @@ const ImagePage = () => {
             <img
                 style={{ width: "100%" }}
                 alt={imageId}
-                src={`https://simple-image-server.s3.ap-northeast-2.amazonaws.com/raw/${image.key}`}
+                src={`https://simple-image-server.s3.ap-northeast-2.amazonaws.com/w600/${image.key}`}
             />
             <span>{`👍🏼 Likes ${image.likes.length}`}</span>
             {me && image.user._id === me.userId && (
